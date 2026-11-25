@@ -14,6 +14,9 @@ from qrgen.text2d import contours_to_polygons
 
 _NUM = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
 _TRANSFORM = re.compile(r"(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)")
+_ENTITY_REF = re.compile(r"&([A-Za-z_:][\w:.-]*);")
+_ENTITY_NAME = re.compile(r"([A-Za-z_:][\w:.-]*)\s+(.*)\Z", re.DOTALL)
+_BUILTIN_ENTITIES = {"lt", "gt", "amp", "quot", "apos"}
 
 
 def svg_polygons(source: str, width_mm: float, origin_x: float, origin_y: float) -> list[Polygon]:
@@ -22,8 +25,7 @@ def svg_polygons(source: str, width_mm: float, origin_x: float, origin_y: float)
         return []
     if len(text) > 500_000:
         raise InputError("Plik SVG jest za duży (maks. 500 KB).")
-    if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
-        raise InputError("SVG z definicjami encji nie jest obsługiwane.")
+    text = _prepare_svg(text)
     try:
         root = ET.fromstring(text)
     except ET.ParseError as error:
@@ -47,6 +49,121 @@ def svg_polygons(source: str, width_mm: float, origin_x: float, origin_y: float)
         scaled = scale_geom(polygon, factor, factor, origin=(min_x, min_y))
         placed.append(translate(scaled, origin_x - min_x, origin_y - min_y))
     return placed
+
+
+def _prepare_svg(text: str) -> str:
+    """Rozwija encje wewnętrzne i usuwa DOCTYPE. Encji zewnętrznych nie pobiera."""
+    lower = text.lower()
+    if "<!doctype" not in lower and "<!entity" not in lower:
+        return text
+    entities: dict[str, str] = {}
+    external: set[str] = set()
+    pieces: list[str] = []
+    index = 0
+    while index < len(text):
+        doctype_at = lower.find("<!doctype", index)
+        entity_at = lower.find("<!entity", index)
+        starts = [pos for pos in (doctype_at, entity_at) if pos != -1]
+        if not starts:
+            pieces.append(text[index:])
+            break
+        start = min(starts)
+        pieces.append(text[index:start])
+        if doctype_at != -1 and start == doctype_at:
+            end, subset = _read_doctype(text, start)
+            _collect_entities(subset, entities, external)
+        else:
+            end = _read_markup(text, start)
+            _collect_entities(text[start:end], entities, external)
+        index = end
+    body = "".join(pieces)
+    used = set(_ENTITY_REF.findall(body)) - _BUILTIN_ENTITIES
+    if used & external:
+        raise InputError("SVG odwołuje się do zewnętrznej encji. Zapisz plik bez DOCTYPE i bez encji SYSTEM albo PUBLIC.")
+    return _expand_entities(body, entities)
+
+
+def _read_doctype(text: str, start: int) -> tuple[int, str]:
+    quote = ""
+    depth = 0
+    subset_start = -1
+    subset_end = -1
+    for index in range(start, len(text)):
+        char = text[index]
+        if quote:
+            if char == quote:
+                quote = ""
+            continue
+        if char in "\"'":
+            quote = char
+        elif char == "[":
+            depth += 1
+            if depth == 1:
+                subset_start = index + 1
+        elif char == "]":
+            if depth == 1:
+                subset_end = index
+            depth = max(0, depth - 1)
+        elif char == ">" and depth == 0:
+            subset = text[subset_start:subset_end] if subset_start >= 0 and subset_end >= subset_start else ""
+            return index + 1, subset
+    raise InputError("Nie da się odczytać pliku SVG.")
+
+
+def _read_markup(text: str, start: int) -> int:
+    quote = ""
+    for index in range(start, len(text)):
+        char = text[index]
+        if quote:
+            if char == quote:
+                quote = ""
+            continue
+        if char in "\"'":
+            quote = char
+        elif char == ">":
+            return index + 1
+    raise InputError("Nie da się odczytać pliku SVG.")
+
+
+def _collect_entities(subset: str, entities: dict[str, str], external: set[str]) -> None:
+    lower = subset.lower()
+    index = 0
+    while True:
+        start = lower.find("<!entity", index)
+        if start == -1:
+            return
+        end = _read_markup(subset, start)
+        body = subset[start + len("<!ENTITY") : end - 1].strip()
+        index = end
+        if not body or body.startswith("%"):
+            continue
+        matched = _ENTITY_NAME.match(body)
+        if not matched:
+            continue
+        name, rest = matched.group(1), matched.group(2).strip()
+        kind = rest[:6].upper()
+        if kind.startswith("SYSTEM") or kind.startswith("PUBLIC"):
+            external.add(name)
+            continue
+        if rest[:1] in "\"'":
+            quote = rest[0]
+            end_quote = rest.find(quote, 1)
+            if end_quote != -1:
+                entities[name] = rest[1:end_quote]
+
+
+def _expand_entities(text: str, entities: dict[str, str]) -> str:
+    if not entities:
+        return text
+    pattern = re.compile("&(" + "|".join(re.escape(name) for name in entities) + ");")
+    for _ in range(16):
+        expanded = pattern.sub(lambda match: entities.get(match.group(1), match.group(0)), text)
+        if expanded == text:
+            return text
+        if len(expanded) > 500_000:
+            raise InputError("Plik SVG jest za duży (maks. 500 KB).")
+        text = expanded
+    raise InputError("Definicje encji w SVG zapętlają się.")
 
 
 def _walk(element, matrix, inherited: dict, output: list[Polygon]) -> None:

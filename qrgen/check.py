@@ -13,7 +13,9 @@ from qrgen.export_3mf import _objects, _relief_z, build_3mf
 from qrgen.fonts import default_font_id, resolve_font
 from qrgen.mesh import box_mesh, extrude_polygons, is_watertight, mesh_volume, plate_polygon
 from qrgen.params import parse_params
+from qrgen.errors import InputError
 from qrgen.scene import build_scene
+from qrgen.svg2d import svg_polygons
 from qrgen.text2d import render_text
 
 
@@ -173,6 +175,20 @@ def main() -> None:
     ring_scene = build_scene(parse_params({"url": "", "text": "", "svg": ring, "svg_width": 10, "svg_x": 0, "svg_y": 0}))
     ring_area = unary_union(ring_scene.svg_polygons).area
     assert ring_area < 80, ring_area
+    declared = """<?xml version="1.0"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [
+  <!ENTITY ns_svg "http://www.w3.org/2000/svg">
+]>
+<svg xmlns="&ns_svg;" viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10"/></svg>"""
+    declared_scene = build_scene(parse_params({"url": "", "text": "", "svg": declared, "svg_width": 10}))
+    assert declared_scene.svg_polygons, "SVG z encją wewnętrzną"
+    external = """<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg">&xxe;<rect width="10" height="10"/></svg>"""
+    try:
+        svg_polygons(external, 10, 0, 0)
+    except InputError as error:
+        assert "zewnętrznej encji" in str(error)
+    else:
+        raise AssertionError("encja zewnętrzna została wczytana")
 
     from app import app
 
