@@ -189,8 +189,7 @@
           <label>Głębokość mm<input name="base_d" type="number" min="10" max="350" step="0.5" value="36"></label>
           <label>Grubość mm<input name="base_h" type="number" min="0.4" max="30" step="0.1" value="2"></label>
         </div>
-        <div class="grid3">
-          <label>Margines mm<input name="margin" type="number" min="0" max="40" step="0.5" value="3"></label>
+        <div class="grid2">
           <label>Odstęp QR–tekst mm<input name="gap" type="number" min="0" max="40" step="0.5" value="3"></label>
           <label>Zaokrąglenie mm<input name="corner_radius" type="number" min="0" max="160" step="0.5" value="0"></label>
         </div>
@@ -219,6 +218,11 @@
             <input name="qr_border" type="number" min="0" max="8" step="1" value="2">
           </label>
         </div>
+        <div class="grid2">
+          <label>Położenie X mm<input name="qr_x" type="number" min="-80" max="400" step="0.5" value="0"></label>
+          <label>Położenie Y mm<input name="qr_y" type="number" min="-80" max="400" step="0.5" value="0"></label>
+        </div>
+        <p class="meta">Przesunięcie względem ułożenia. X w prawo, Y w górę.</p>
       </section>
 
       <section>
@@ -254,6 +258,11 @@ link w kodzie</textarea>
             <option value="bottom">Do dołu</option>
           </select>
         </label>
+        <div class="grid2">
+          <label>Położenie X mm<input name="text_x" type="number" min="-80" max="400" step="0.5" value="0"></label>
+          <label>Położenie Y mm<input name="text_y" type="number" min="-80" max="400" step="0.5" value="0"></label>
+        </div>
+        <p class="meta">Przesunięcie względem ułożenia. X w prawo, Y w górę.</p>
         <label class="check"><input name="bold" type="checkbox"> Pogrubienie</label>
         <label class="check"><input name="fit_text" type="checkbox" checked> Zmniejsz litery, jeśli nie wchodzą</label>
       </section>
@@ -311,9 +320,9 @@ link w kodzie</textarea>
     const svgSame = document.getElementById("svg-same");
     let svgText = "";
     const presets = {
-      etykieta: { base_w: 85, base_d: 36, base_h: 2, qr_size: 26, text_height: 6.5, margin: 3, gap: 3, layout: "qr-left" },
-      wizytowka: { base_w: 90, base_d: 50, base_h: 2.2, qr_size: 32, text_height: 7, margin: 4, gap: 4, layout: "qr-left" },
-      kwadrat: { base_w: 50, base_d: 50, base_h: 2, qr_size: 28, text_height: 5, margin: 3, gap: 2.5, layout: "qr-top" }
+      etykieta: { base_w: 85, base_d: 36, base_h: 2, qr_size: 26, text_height: 6.5, qr_x: 0, qr_y: 0, text_x: 0, text_y: 0, gap: 3, layout: "qr-left" },
+      wizytowka: { base_w: 90, base_d: 50, base_h: 2.2, qr_size: 32, text_height: 7, qr_x: 0, qr_y: 0, text_x: 0, text_y: 0, gap: 4, layout: "qr-left" },
+      kwadrat: { base_w: 50, base_d: 50, base_h: 2, qr_size: 28, text_height: 5, qr_x: 0, qr_y: 0, text_x: 0, text_y: 0, gap: 2.5, layout: "qr-top" }
     };
 
     fonts.forEach((font) => {
@@ -360,7 +369,10 @@ link w kodzie</textarea>
         base_w: form.base_w.value,
         base_d: form.base_d.value,
         base_h: form.base_h.value,
-        margin: form.margin.value,
+        qr_x: form.qr_x.value,
+        qr_y: form.qr_y.value,
+        text_x: form.text_x.value,
+        text_y: form.text_y.value,
         gap: form.gap.value,
         layout: form.layout.value,
         corner_radius: form.corner_radius.value,

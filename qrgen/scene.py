@@ -113,12 +113,6 @@ class Scene:
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view}" preserveAspectRatio="xMidYMid meet" role="img">',
             f'<path fill="{params.color_base}" stroke="{stroke}" stroke-width="{_n(max(params.base_w, params.base_d) * 0.004)}" d="{_svg_path(plate_polygon(params.base_w, params.base_d, params.corner_radius), params.base_d)}"/>',
         ]
-        if params.margin > 0.2:
-            inset_w = params.base_w - 2 * params.margin
-            inset_h = params.base_d - 2 * params.margin
-            parts.append(
-                f'<rect x="{_n(params.margin)}" y="{_n(params.margin)}" width="{_n(inset_w)}" height="{_n(inset_h)}" fill="none" stroke="{stroke}" stroke-opacity="0.35" stroke-width="{_n(max(params.base_w, params.base_d) * 0.002)}" stroke-dasharray="{_n(max(params.base_w, params.base_d) * 0.012)} {_n(max(params.base_w, params.base_d) * 0.008)}"/>'
-            )
         for x, y, w, h in self.qr_rects:
             svg_y = params.base_d - (y + h)
             parts.append(
@@ -165,6 +159,8 @@ def build_scene(params: Params) -> Scene:
         scene.qr_rects = _module_rects(matrix, qr_box)
         if not any(row for row in matrix):
             raise InputError("Kod QR wyszedł pusty.")
+        if _bounds_outside(params, _rects_bounds(scene.qr_rects)):
+            scene.warnings.append("QR wychodzi poza podstawę. Zmień położenie albo zmniejsz kod.")
 
     if has_text and text_box is not None:
         font_path, used_bold = resolve_font(params.font_id, params.bold)
@@ -180,6 +176,8 @@ def build_scene(params: Params) -> Scene:
         scene.text_height_used = used_height
         if fit_warning:
             scene.warnings.append(fit_warning)
+        if _bounds_outside(params, unary_union(placed).bounds):
+            scene.warnings.append("Tekst wychodzi poza podstawę. Zmień położenie albo zmniejsz litery.")
 
     if params.svg:
         scene.svg_polygons = svg_polygons(params.svg, params.svg_width, params.svg_x, params.svg_y)
@@ -234,20 +232,44 @@ def _module_rects(matrix: list[list[bool]], box: Box) -> list[tuple[float, float
     return rects
 
 
+def _offset_box(box: Box | None, dx: float, dy: float) -> Box | None:
+    if box is None:
+        return None
+    return Box(box.x + dx, box.y + dy, box.w, box.h)
+
+
+def _rects_bounds(rects: list[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+    return (
+        min(x for x, _y, _w, _h in rects),
+        min(y for _x, y, _w, _h in rects),
+        max(x + w for x, _y, w, _h in rects),
+        max(y + h for _x, y, _w, h in rects),
+    )
+
+
+def _bounds_outside(params: Params, bounds: tuple[float, float, float, float]) -> bool:
+    return (
+        bounds[0] < -0.2
+        or bounds[1] < -0.2
+        or bounds[2] > params.base_w + 0.2
+        or bounds[3] > params.base_d + 0.2
+    )
+
+
 def _content_boxes(params: Params, has_qr: bool, has_text: bool) -> tuple[Box | None, Box | None, str | None]:
-    left = params.margin
-    bottom = params.margin
-    inner_w = params.base_w - 2 * params.margin
-    inner_h = params.base_d - 2 * params.margin
-    if inner_w <= 1 or inner_h <= 1:
-        raise InputError("Po odjęciu marginesu nie zostaje miejsce na treść.")
+    left = 0.0
+    bottom = 0.0
+    inner_w = params.base_w
+    inner_h = params.base_d
 
     if has_qr and not has_text:
         size, warning = _limit_qr(params.qr_size, min(inner_w, inner_h), "na podstawę", alone=True)
-        return Box(left + (inner_w - size) / 2, bottom + (inner_h - size) / 2, size, size), None, warning
+        qr_box = Box(left + (inner_w - size) / 2, bottom + (inner_h - size) / 2, size, size)
+        return _offset_box(qr_box, params.qr_x, params.qr_y), None, warning
 
     if has_text and not has_qr:
-        return None, Box(left, bottom, inner_w, inner_h), None
+        text_box = Box(left, bottom, inner_w, inner_h)
+        return None, _offset_box(text_box, params.text_x, params.text_y), None
 
     gap = params.gap
     if params.layout in {"qr-left", "qr-right"}:
@@ -255,16 +277,24 @@ def _content_boxes(params: Params, has_qr: bool, has_text: bool) -> tuple[Box | 
         qr_y = bottom + (inner_h - size) / 2
         text_w = inner_w - size - gap
         if params.layout == "qr-left":
-            return Box(left, qr_y, size, size), Box(left + size + gap, bottom, text_w, inner_h), warning
-        return Box(left + inner_w - size, qr_y, size, size), Box(left, bottom, text_w, inner_h), warning
+            qr_box = Box(left, qr_y, size, size)
+            text_box = Box(left + size + gap, bottom, text_w, inner_h)
+        else:
+            qr_box = Box(left + inner_w - size, qr_y, size, size)
+            text_box = Box(left, bottom, text_w, inner_h)
+        return _offset_box(qr_box, params.qr_x, params.qr_y), _offset_box(text_box, params.text_x, params.text_y), warning
 
     where = "nad tekstem" if params.layout == "qr-top" else "pod tekstem"
     size, warning = _limit_qr(params.qr_size, _stack_limit(inner_h, inner_w, gap), where)
     qr_x = left + (inner_w - size) / 2
     text_h = inner_h - size - gap
     if params.layout == "qr-top":
-        return Box(qr_x, bottom + text_h + gap, size, size), Box(left, bottom, inner_w, text_h), warning
-    return Box(qr_x, bottom, size, size), Box(left, bottom + size + gap, inner_w, text_h), warning
+        qr_box = Box(qr_x, bottom + text_h + gap, size, size)
+        text_box = Box(left, bottom, inner_w, text_h)
+    else:
+        qr_box = Box(qr_x, bottom, size, size)
+        text_box = Box(left, bottom + size + gap, inner_w, text_h)
+    return _offset_box(qr_box, params.qr_x, params.qr_y), _offset_box(text_box, params.text_x, params.text_y), warning
 
 
 def _stack_limit(along: float, cross: float, gap: float) -> float:
@@ -276,8 +306,8 @@ def _stack_limit(along: float, cross: float, gap: float) -> float:
 def _limit_qr(requested: float, limit: float, where: str, alone: bool = False) -> tuple[float, str | None]:
     if limit < 8:
         if alone:
-            raise InputError("QR nie mieści się na podstawie. Zwiększ płytkę albo zmniejsz margines.")
-        raise InputError("Na tej podstawie nie mieści się QR razem z tekstem. Powiększ płytkę albo zmniejsz margines i odstęp.")
+            raise InputError("QR nie mieści się na podstawie. Zwiększ płytkę.")
+        raise InputError("Na tej podstawie nie mieści się QR razem z tekstem. Powiększ płytkę albo zmniejsz odstęp.")
     if requested > limit + 0.05:
         return limit, f"QR zmniejszony do {limit:.1f} mm, żeby zmieścił się {where}."
     return requested, None

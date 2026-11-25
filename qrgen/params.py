@@ -34,7 +34,10 @@ class Params:
     base_d: float
     base_h: float
     corner_radius: float
-    margin: float
+    qr_x: float
+    qr_y: float
+    text_x: float
+    text_y: float
     gap: float
     layout: str
     color_base: str
@@ -68,7 +71,10 @@ DEFAULTS = {
     "base_d": 36.0,
     "base_h": 2.0,
     "corner_radius": 0.0,
-    "margin": 3.0,
+    "qr_x": 0.0,
+    "qr_y": 0.0,
+    "text_x": 0.0,
+    "text_y": 0.0,
     "gap": 3.0,
     "layout": "qr-left",
     "color_base": "#1B1B1B",
@@ -183,7 +189,10 @@ def parse_params(data: dict) -> Params:
         base_d=_float(merged["base_d"], "głębokość podstawy", 10.0, 350.0),
         base_h=_float(merged["base_h"], "grubość podstawy", 0.4, 30.0),
         corner_radius=_float(merged["corner_radius"], "zaokrąglenie", 0.0, 160.0),
-        margin=_float(merged["margin"], "margines", 0.0, 40.0),
+        qr_x=_float(merged["qr_x"], "położenie X QR", -80.0, 400.0),
+        qr_y=_float(merged["qr_y"], "położenie Y QR", -80.0, 400.0),
+        text_x=_float(merged["text_x"], "położenie X tekstu", -80.0, 400.0),
+        text_y=_float(merged["text_y"], "położenie Y tekstu", -80.0, 400.0),
         gap=_float(merged["gap"], "odstęp", 0.0, 40.0),
         layout=_choice(str(merged["layout"]), "ułożenie", LAYOUTS),
         color_base=_color(merged["color_base"], "podstawa"),
@@ -198,6 +207,4 @@ def parse_params(data: dict) -> Params:
         color_svg=color_svg,
         svg_same=svg_same,
     )
-    if params.margin * 2 >= params.base_w or params.margin * 2 >= params.base_d:
-        raise InputError("Margines jest większy niż podstawa.")
     return params

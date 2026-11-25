@@ -181,6 +181,14 @@ def main() -> None:
     assert response.status_code == 200, response.get_json()
     body = response.get_json()
     assert "<svg" in body["svg"]
+    assert "stroke-dasharray" not in body["svg"]
+    parked = build_scene(parse_params({"text": "A", "url": "https://example.com", "qr_x": 4, "text_x": 6, "text_y": 2}))
+    still = build_scene(parse_params({"text": "A", "url": "https://example.com"}))
+    assert abs(min(x for x, *_rest in parked.qr_rects) - min(x for x, *_rest in still.qr_rects) - 4) < 0.05
+    parked_text = unary_union(parked.text_polygons).bounds
+    still_text = unary_union(still.text_polygons).bounds
+    assert abs((parked_text[0] - still_text[0]) - 6) < 0.05
+    assert abs((parked_text[1] - still_text[1]) - 2) < 0.05
     assert body["info"]["filaments"] >= 2
     stacked = build_scene(parse_params({"layout": "qr-top"}))
     assert stacked.qr_rects and stacked.text_polygons
