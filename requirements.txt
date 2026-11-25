@@ -1,0 +1,6 @@
+flask>=3.0
+qrcode>=7.4
+fonttools>=4.50
+numpy>=1.26
+shapely>=2.0
+mapbox-earcut>=1.0

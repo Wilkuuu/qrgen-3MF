@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>qrgen-3MF — tabliczka z QR</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #121417;
+      --panel: #1b1e23;
+      --ink: #ece7dc;
+      --muted: #9b9588;
+      --line: #31363d;
+      --field: #101216;
+      --brass: #e2a23a;
+      --brass-ink: #2a1c08;
+      --danger: #e36a5d;
+      --warn: #e2b15a;
+      --ok: #8fbf9f;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 "Segoe UI", sans-serif;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      padding: 18px 22px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0 0 2px;
+      color: var(--brass);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+    header p.lead { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+    .workspace {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(320px, 440px) 1fr;
+    }
+    form {
+      overflow: auto;
+      padding: 16px 18px 28px;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    section h2 {
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+    input, select, textarea {
+      width: 100%;
+      background: var(--field);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 14px;
+    }
+    textarea { min-height: 74px; resize: vertical; }
+    input[type="color"] { padding: 4px; height: 38px; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); border-color: transparent; }
+    .check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
+    .check input { width: auto; }
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    .presets button, #download, #svg-clear {
+      border: 0;
+      border-radius: 999px;
+      padding: 7px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .presets button, #svg-clear { background: #2a2418; color: var(--brass); }
+    .presets button:hover, #svg-clear:hover { background: #3a3120; }
+    #svg-clear { align-self: flex-start; }
+    .preview {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 16px 18px 18px;
+      gap: 12px;
+    }
+    .stage {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, #23272d, #171a1e);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .stage.is-loading { opacity: 0.72; }
+    .stage svg { width: 100%; height: 100%; display: block; }
+    .meta { color: var(--muted); min-height: 1.4em; }
+    .messages { display: flex; flex-direction: column; gap: 6px; }
+    .msg { border-radius: 8px; padding: 8px 10px; }
+    .msg.warn { background: #3a2e16; color: var(--warn); }
+    .msg.err { background: #3a201c; color: #ffb1a8; }
+    .bar { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    #download {
+      background: var(--brass);
+      color: var(--brass-ink);
+      font-weight: 700;
+      padding: 10px 16px;
+    }
+    #download:disabled { opacity: 0.45; cursor: not-allowed; }
+    .swatches { display: flex; gap: 12px; color: var(--muted); font-size: 12px; }
+    .swatches i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      margin-right: 5px;
+      vertical-align: -1px;
+      border: 1px solid #0006;
+    }
+    @media (max-width: 900px) {
+      body { overflow: auto; height: auto; }
+      .workspace { display: block; }
+      form { border-right: 0; border-bottom: 1px solid var(--line); }
+      .stage { min-height: 320px; height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">qrgen-3MF</p>
+      <h1>Tabliczka z kodem QR i tekstem</h1>
+      <p class="lead">Podstawa, kod i napis to osobne obiekty w jednym pliku 3MF. Otwórz go w Bambu Studio albo OrcaSlicer jako projekt — kolory filamentów są już przypisane.</p>
+    </div>
+  </header>
+  <div class="workspace">
+    <form id="panel">
+      <section>
+        <h2>Ułożenie i podstawa</h2>
+        <div class="presets">
+          <button type="button" data-preset="etykieta">Etykieta 85×36</button>
+          <button type="button" data-preset="wizytowka">Wizytówka 90×50</button>
+          <button type="button" data-preset="kwadrat">Kwadrat 50×50</button>
+        </div>
+        <label>Ułożenie
+          <select name="layout">
+            <option value="qr-left">QR po lewej, tekst po prawej</option>
+            <option value="qr-right">Tekst po lewej, QR po prawej</option>
+            <option value="qr-top">QR u góry, tekst na dole</option>
+            <option value="qr-bottom">Tekst u góry, QR na dole</option>
+          </select>
+        </label>
+        <div class="grid3">
+          <label>Szerokość mm<input name="base_w" type="number" min="10" max="350" step="0.5" value="85"></label>
+          <label>Głębokość mm<input name="base_d" type="number" min="10" max="350" step="0.5" value="36"></label>
+          <label>Grubość mm<input name="base_h" type="number" min="0.4" max="30" step="0.1" value="2"></label>
+        </div>
+        <div class="grid3">
+          <label>Margines mm<input name="margin" type="number" min="0" max="40" step="0.5" value="3"></label>
+          <label>Odstęp QR–tekst mm<input name="gap" type="number" min="0" max="40" step="0.5" value="3"></label>
+          <label>Zaokrąglenie mm<input name="corner_radius" type="number" min="0" max="160" step="0.5" value="0"></label>
+        </div>
+        <p class="meta">QR, tekst i SVG zaczynają się na górze podstawy — na wysokości jej grubości, nie od stołu.</p>
+      </section>
+
+      <section>
+        <h2>Kod QR</h2>
+        <label>Link
+          <input name="url" type="url" value="https://github.com/Wilkuuu/qrgen-3MF" placeholder="https://…">
+        </label>
+        <div class="grid2">
+          <label>Rozmiar mm<input name="qr_size" type="number" min="8" max="320" step="0.5" value="26"></label>
+          <label>Grubość nadruku mm<input name="qr_layer" type="number" min="0.2" max="6" step="0.1" value="0.8"></label>
+        </div>
+        <div class="grid2">
+          <label>Korekcja
+            <select name="qr_ec">
+              <option value="L">L — mało danych zapasowych</option>
+              <option value="M" selected>M — zwykła</option>
+              <option value="Q">Q — odporniejsza</option>
+              <option value="H">H — najodporniejsza</option>
+            </select>
+          </label>
+          <label>Pusta ramka (moduły)
+            <input name="qr_border" type="number" min="0" max="8" step="1" value="2">
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>Tekst</h2>
+        <label>Treść
+          <textarea name="text">QRGEN
+link w kodzie</textarea>
+        </label>
+        <div class="grid2">
+          <label>Font
+            <select name="font_id" id="font"></select>
+          </label>
+          <label>Wysokość wielkich liter mm
+            <input name="text_height" type="number" min="1" max="80" step="0.1" value="6.5">
+          </label>
+        </div>
+        <div class="grid2">
+          <label>Grubość nadruku mm
+            <input name="text_layer" type="number" min="0.2" max="6" step="0.1" value="0.8">
+          </label>
+          <label>W poziomie
+            <select name="text_align_h">
+              <option value="left">Do lewej</option>
+              <option value="center" selected>Środek</option>
+              <option value="right">Do prawej</option>
+            </select>
+          </label>
+        </div>
+        <label>W pionie
+          <select name="text_align_v">
+            <option value="top">Do góry</option>
+            <option value="middle" selected>Środek</option>
+            <option value="bottom">Do dołu</option>
+          </select>
+        </label>
+        <label class="check"><input name="bold" type="checkbox"> Pogrubienie</label>
+        <label class="check"><input name="fit_text" type="checkbox" checked> Zmniejsz litery, jeśli nie wchodzą</label>
+      </section>
+
+      <section>
+        <h2>Grafika SVG</h2>
+        <label>Plik
+          <input id="svg-file" type="file" accept=".svg,image/svg+xml">
+        </label>
+        <p class="meta" id="svg-name">Brak pliku. Krzywe z SVG staną się osobnym nadrukiem.</p>
+        <button type="button" id="svg-clear">Usuń SVG</button>
+        <div class="grid3">
+          <label>Szerokość mm<input name="svg_width" type="number" min="2" max="320" step="0.5" value="20"></label>
+          <label>X od lewej mm<input name="svg_x" type="number" min="-50" max="400" step="0.5" value="3"></label>
+          <label>Y od dołu mm<input name="svg_y" type="number" min="-50" max="400" step="0.5" value="3"></label>
+        </div>
+        <div class="grid2">
+          <label>Grubość nadruku mm<input name="svg_layer" type="number" min="0.2" max="6" step="0.1" value="0.8"></label>
+          <label>Kolor<input name="color_svg" type="color" value="#3d7eff"></label>
+        </div>
+        <label class="check"><input name="svg_same" id="svg-same" type="checkbox" checked> Ten sam kolor co tekst</label>
+      </section>
+
+      <section>
+        <h2>Kolory filamentów</h2>
+        <div class="grid3">
+          <label>Podstawa<input name="color_base" type="color" value="#1b1b1b"></label>
+          <label>QR<input name="color_qr" type="color" value="#f4f4f4"></label>
+          <label>Tekst<input name="color_text" type="color" value="#e2a23a"></label>
+        </div>
+        <label class="check"><input name="same_ink" id="same-ink" type="checkbox" checked> Tekst tym samym kolorem co QR</label>
+      </section>
+    </form>
+
+    <aside class="preview">
+      <div class="bar">
+        <div class="swatches" id="swatches"></div>
+        <button id="download" type="button">Pobierz 3MF</button>
+      </div>
+      <div class="stage" id="stage" aria-label="Podgląd tabliczki z góry"></div>
+      <p class="meta" id="meta">Liczenie podglądu…</p>
+      <div class="messages" id="messages"></div>
+    </aside>
+  </div>
+  <script id="font-data" type="application/json">{{ fonts | tojson }}</script>
+  <script>
+    const fonts = JSON.parse(document.getElementById("font-data").textContent);
+    const form = document.getElementById("panel");
+    const fontSelect = document.getElementById("font");
+    const stage = document.getElementById("stage");
+    const meta = document.getElementById("meta");
+    const messages = document.getElementById("messages");
+    const download = document.getElementById("download");
+    const sameInk = document.getElementById("same-ink");
+    const svgSame = document.getElementById("svg-same");
+    let svgText = "";
+    const presets = {
+      etykieta: { base_w: 85, base_d: 36, base_h: 2, qr_size: 26, text_height: 6.5, margin: 3, gap: 3, layout: "qr-left" },
+      wizytowka: { base_w: 90, base_d: 50, base_h: 2.2, qr_size: 32, text_height: 7, margin: 4, gap: 4, layout: "qr-left" },
+      kwadrat: { base_w: 50, base_d: 50, base_h: 2, qr_size: 28, text_height: 5, margin: 3, gap: 2.5, layout: "qr-top" }
+    };
+
+    fonts.forEach((font) => {
+      const option = document.createElement("option");
+      option.value = font.id;
+      option.textContent = font.label;
+      option.dataset.bold = font.bold ? "1" : "0";
+      if (font.id === "segoe") option.selected = true;
+      fontSelect.appendChild(option);
+    });
+    if (!fontSelect.value && fontSelect.options.length) fontSelect.selectedIndex = 0;
+
+    function syncFont() {
+      const option = fontSelect.selectedOptions[0];
+      const bold = form.bold;
+      const available = option && option.dataset.bold === "1";
+      bold.disabled = !available;
+      bold.parentElement.style.opacity = available ? "1" : "0.45";
+      if (!available) bold.checked = false;
+    }
+
+    function syncInk() {
+      form.color_text.disabled = sameInk.checked;
+      form.color_text.parentElement.style.opacity = sameInk.checked ? "0.45" : "1";
+      form.color_svg.disabled = svgSame.checked;
+      form.color_svg.parentElement.style.opacity = svgSame.checked ? "0.45" : "1";
+    }
+
+    function payload() {
+      const data = {
+        url: form.url.value,
+        text: form.text.value,
+        font_id: form.font_id.value,
+        bold: form.bold.checked,
+        text_height: form.text_height.value,
+        text_layer: form.text_layer.value,
+        text_align_h: form.text_align_h.value,
+        text_align_v: form.text_align_v.value,
+        fit_text: form.fit_text.checked,
+        qr_size: form.qr_size.value,
+        qr_layer: form.qr_layer.value,
+        qr_border: form.qr_border.value,
+        qr_ec: form.qr_ec.value,
+        base_w: form.base_w.value,
+        base_d: form.base_d.value,
+        base_h: form.base_h.value,
+        margin: form.margin.value,
+        gap: form.gap.value,
+        layout: form.layout.value,
+        corner_radius: form.corner_radius.value,
+        color_base: form.color_base.value,
+        color_qr: form.color_qr.value,
+        color_text: form.color_text.value,
+        same_ink: form.same_ink.checked,
+        svg: svgText,
+        svg_width: form.svg_width.value,
+        svg_x: form.svg_x.value,
+        svg_y: form.svg_y.value,
+        svg_layer: form.svg_layer.value,
+        color_svg: form.color_svg.value,
+        svg_same: form.svg_same.checked
+      };
+      return data;
+    }
+
+    let timer = 0;
+    let controller = null;
+    let canDownload = false;
+
+    function swatches(legend) {
+      document.getElementById("swatches").innerHTML = (legend || []).map((item) =>
+        `<span><i style="background:${item.color}"></i>${item.label}</span>`
+      ).join("");
+    }
+
+    async function preview() {
+      controller?.abort();
+      controller = new AbortController();
+      stage.classList.add("is-loading");
+      try {
+        const response = await fetch("/api/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload()),
+          signal: controller.signal
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          canDownload = false;
+          download.disabled = true;
+          meta.textContent = "Popraw wymiary albo treść.";
+          messages.innerHTML = `<div class="msg err">${body.error || "Błąd podglądu."}</div>`;
+          return;
+        }
+        canDownload = true;
+        download.disabled = false;
+        stage.innerHTML = body.svg;
+        meta.textContent = body.info.summary;
+        swatches(body.info.legend);
+        messages.innerHTML = (body.info.warnings || []).map((item) => `<div class="msg warn">${item}</div>`).join("");
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        canDownload = false;
+        download.disabled = true;
+        meta.textContent = "Brak połączenia z programem.";
+      } finally {
+        stage.classList.remove("is-loading");
+      }
+    }
+
+    function schedule() {
+      clearTimeout(timer);
+      timer = setTimeout(preview, 180);
+    }
+
+    form.addEventListener("input", () => { syncFont(); syncInk(); schedule(); });
+    form.addEventListener("change", () => { syncFont(); syncInk(); schedule(); });
+    form.addEventListener("submit", (event) => event.preventDefault());
+
+    document.getElementById("svg-file").addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      svgText = file ? await file.text() : "";
+      document.getElementById("svg-name").textContent = file ? file.name : "Brak pliku. Krzywe z SVG staną się osobnym nadrukiem.";
+      schedule();
+    });
+    document.getElementById("svg-clear").addEventListener("click", () => {
+      svgText = "";
+      document.getElementById("svg-file").value = "";
+      document.getElementById("svg-name").textContent = "Brak pliku. Krzywe z SVG staną się osobnym nadrukiem.";
+      schedule();
+    });
+
+    document.querySelectorAll("[data-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = presets[button.dataset.preset];
+        Object.entries(preset).forEach(([key, value]) => {
+          if (form[key]) form[key].value = value;
+        });
+        schedule();
+      });
+    });
+
+    download.addEventListener("click", async () => {
+      download.disabled = true;
+      try {
+        const response = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload())
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          messages.insertAdjacentHTML("afterbegin", `<div class="msg err">${body.error || "Nie udało się zapisać 3MF."}</div>`);
+          return;
+        }
+        const blob = await response.blob();
+        const header = response.headers.get("Content-Disposition") || "";
+        const starred = header.match(/filename\*=UTF-8''([^;]+)/i);
+        const plain = header.match(/filename="?([^";]+)"?/i);
+        const filename = decodeURIComponent((starred && starred[1]) || (plain && plain[1]) || "tabliczka.3mf");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } finally {
+        download.disabled = !canDownload;
+      }
+    });
+
+    syncFont();
+    syncInk();
+    preview();
+  </script>
+</body>
+</html>
