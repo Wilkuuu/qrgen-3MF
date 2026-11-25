@@ -10,7 +10,7 @@ import numpy as np
 from shapely.ops import unary_union
 
 from qrgen.export_3mf import _objects, _relief_z, build_3mf
-from qrgen.fonts import resolve_font
+from qrgen.fonts import default_font_id, resolve_font
 from qrgen.mesh import box_mesh, extrude_polygons, is_watertight, mesh_volume, plate_polygon
 from qrgen.params import parse_params
 from qrgen.scene import build_scene
@@ -55,7 +55,7 @@ def _bbox_area(polygons) -> float:
 
 
 def main() -> None:
-    font, _bold = resolve_font("arial", False)
+    font, _bold = resolve_font(default_font_id(), False)
     o_polys, warnings = render_text("O", str(font), 10.0, "left")
     assert o_polys, "brak litery O"
     assert not warnings
@@ -92,7 +92,7 @@ def main() -> None:
             {
                 "url": "https://github.com/Wilkuuu/qrgen-3MF",
                 "text": "QRGEN\nZażółć",
-                "font_id": "arial",
+                "font_id": default_font_id(),
                 "layout": "qr-left",
                 "base_w": 90,
                 "base_d": 40,

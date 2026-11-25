@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 
 from qrgen.errors import InputError
+from qrgen.fonts import available_fonts, default_font_id
 
 LAYOUTS = ("qr-left", "qr-right", "qr-top", "qr-bottom")
 ALIGNS_H = ("left", "center", "right")
@@ -125,6 +126,14 @@ def _choice(value, name: str, allowed: tuple[str, ...]) -> str:
     return value
 
 
+def _font_id(value) -> str:
+    requested = str(value or "")
+    known = {choice.id for choice in available_fonts()}
+    if requested in known:
+        return requested
+    return default_font_id()
+
+
 def parse_params(data: dict) -> Params:
     if not isinstance(data, dict):
         raise InputError("Brak danych formularza.")
@@ -159,7 +168,7 @@ def parse_params(data: dict) -> Params:
     params = Params(
         url=url,
         text=text,
-        font_id=str(merged["font_id"] or "segoe"),
+        font_id=_font_id(merged["font_id"]),
         bold=_bool(merged["bold"], "pogrubienie"),
         text_height=_float(merged["text_height"], "wysokość liter", 1.0, 80.0),
         text_layer=_float(merged["text_layer"], "grubość tekstu", 0.2, 6.0),

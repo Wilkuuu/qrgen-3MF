@@ -33,4 +33,4 @@ py -3 -m venv .venv
 
 W slicerze (Bambu Studio, OrcaSlicer) otwórz plik jako projekt, żeby wczytać kolory filamentów. Jeśli kolory się nie podepną, obiekty `Podstawa`, `QR` i `Tekst` i tak są rozdzielone i można im ręcznie wskazać filament.
 
-Dodatkowe fonty: wrzuć pliki `.ttf` lub `.otf` do folderu `fonts`.
+Na Windowsie lista fontów bierze się z katalogu systemowego (Segoe UI, Arial i pozostałe). Na Linuksie z `/usr/share/fonts` oraz `~/.local/share/fonts` — zwykle DejaVu, Noto, FreeFont albo Nimbus. Gdy lista jest pusta, zainstaluj `fonts-dejavu-core`. Dodatkowe fonty: wrzuć pliki `.ttf` lub `.otf` do folderu `fonts`.
